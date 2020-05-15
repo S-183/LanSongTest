@@ -17,6 +17,9 @@
 
 #import "VideoPlayViewController.h"
 #import "StoryMakeStickerImageView.h"
+#import "StoryMakeSelectColorFooterView.h"
+#import "StoryMakeStickerLabelView.h"
+#import "StoryMakeFilterFooterView.h"
 #import "MBProgressHUD.h"
 
 /**
@@ -42,7 +45,7 @@
 @end
 
 //LSTODO 只是临时保留, 没有整理;
-@interface CameraSegmentRecordVC ()
+@interface CameraSegmentRecordVC ()<StoryMakeStickerBaseViewDelegate,StoryMakeSelectColorFooterViewDelegate>
 {
     
     NSString *dstPath;
@@ -86,6 +89,12 @@
 @property (strong, nonatomic) UIButton *flashButton;
 @property (strong, nonatomic) UIButton *btnClose;
 @property (strong, nonatomic) UIButton *btnImg;
+@property (strong, nonatomic) UIButton *btnText;
+@property (nonatomic, strong) StoryMakeSelectColorFooterView *colorFooterView;  //文字
+
+@property (nonatomic, strong) NSMutableArray <UIView *> *stickerViewArray;
+@property (nonatomic, assign) NSInteger stickerTags;
+
 @end
 
 @implementation CameraSegmentRecordVC
@@ -99,6 +108,9 @@
     
     beautyLevel=0;
     beautyMng=[[BeautyManager alloc] init];
+    
+    self.stickerViewArray = [NSMutableArray array];
+    self.stickerTags = 0;
     
     
     //    iphoneX Xs 375 x 812;  (0.5625 则是667);
@@ -301,27 +313,29 @@
 -(void)exportExecute:(NSString *)dstPath
 {
     //我们的方法是增加一层UI来做
-    UIGraphicsBeginImageContextWithOptions(viewPenRoot.bounds.size, NO, [[UIScreen mainScreen] scale]);
-    [viewPenRoot drawViewHierarchyInRect:viewPenRoot.bounds afterScreenUpdates:NO];
-    UIImage *screenImage = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
+//    UIGraphicsBeginImageContextWithOptions(viewPenRoot.bounds.size, NO, [[UIScreen mainScreen] scale]);
+//    [viewPenRoot drawViewHierarchyInRect:viewPenRoot.bounds afterScreenUpdates:NO];
+//    UIImage *screenImage = UIGraphicsGetImageFromCurrentImageContext();
+//    UIGraphicsEndImageContext();
+//
+//    WS(weakSelf)
+//    LSOVideoAsset *mInfo=[[LSOVideoAsset alloc] initWithPath:dstPath];
+//    NSLog(@"fileExistWithURL = %d",[LSOFileUtil fileExistWithURL:mInfo.videoURL]);
+//    videoOneDo = [[LSOVideoOneDo alloc] initWithNSURL:mInfo.videoURL];
+//    [videoOneDo setCoverPicture:screenImage startTime:mInfo.duration-0.2 endTime:mInfo.duration];
+//    [videoOneDo setVideoProgressBlock:^(CGFloat currentFramePts, CGFloat percent) {
+//        dispatch_async(dispatch_get_main_queue(), ^{
+//            [weakSelf exportProgress:percent];
+//        });
+//    }];
+//    [videoOneDo setCompletionBlock:^(NSString *video) {
+//        dispatch_async(dispatch_get_main_queue(), ^{
+//            [weakSelf exportCompleted:video];
+//        });
+//    }];
+//    [videoOneDo start];
     
-    WS(weakSelf)
-    LSOVideoAsset *mInfo=[[LSOVideoAsset alloc] initWithPath:dstPath];
-    NSLog(@"fileExistWithURL = %d",[LSOFileUtil fileExistWithURL:mInfo.videoURL]);
-    videoOneDo = [[LSOVideoOneDo alloc] initWithNSURL:mInfo.videoURL];
-    [videoOneDo setCoverPicture:screenImage startTime:1. endTime:3.];
-    [videoOneDo setVideoProgressBlock:^(CGFloat currentFramePts, CGFloat percent) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [weakSelf exportProgress:percent];
-        });
-    }];
-    [videoOneDo setCompletionBlock:^(NSString *video) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [weakSelf exportCompleted:video];
-        });
-    }];
-    [videoOneDo start];
+    [self exportCompleted:dstPath];
 }
 
 -(void)exportProgress:(CGFloat)percent;
@@ -512,6 +526,17 @@
     _btnImg.tag=302;
     [_btnImg addTarget:self action:@selector(doButtonClicked:) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:_btnImg];
+    
+    // 文字
+    _btnText = [[UIButton alloc] initWithFrame:CGRectMake(285, 110, 90, 90)];
+    [_btnText setTitle:@"文字" forState:UIControlStateNormal];
+    [_btnText setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    _btnText.titleLabel.font=[UIFont systemFontOfSize:20];
+    _btnText.tag = 303;
+    [_btnText addTarget:self action:@selector(doButtonClicked:) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:_btnText];
+    
+    [self.view addSubview:self.colorFooterView]; //文字提出;
 }
 -(void)doButtonClicked:(UIView *)sender
 {
@@ -536,6 +561,7 @@
             if(drawPadCamera!=nil){
                 [drawPadCamera.cameraPen rotateCamera];
             }
+            break;
         case 302:
             if (drawPadCamera  != nil)
             {
@@ -561,11 +587,101 @@
 //                bmpPen.positionY=bmpPen.penSize.height/2 + 100;
                 
             }
+            break;
+        case 303:
+            if (drawPadCamera  != nil) {
+                // 添加文字
+                self.colorFooterView.type = StoryMakeSelectColorFooterViewTypeWriting;
+                [self showColorFooterView];
+            }
+            break;
         default:
             break;
     }
 }
 
+- (void)showColorFooterView
+{
+    self.colorFooterView.hidden = NO;
+    [UIView animateWithDuration:0.3
+                     animations:^{
+                         self.colorFooterView.center = self.view.center;
+                     } completion:^(BOOL finished) {
+                         [self.colorFooterView updateColorFooterViewInMainView];
+                     }];
+    
+}
+
+- (void)hideColorFooterView
+{
+    [UIView animateWithDuration:0.3
+                     animations:^{
+                         self.colorFooterView.center = CGPointMake(self.view.center.x, self.view.center.y + SCREENAPPLYHEIGHT(667));
+                     } completion:^(BOOL finished) {
+                         self.colorFooterView.hidden = YES;
+                     }];
+}
+
+#pragma mark - StoryMakeSelectColorFooterViewDelegate
+
+- (void)storyMakeSelectColorFooterViewCloseBtnClicked
+{
+    [self hideColorFooterView];
+}
+
+- (void)storyMakeSelectColorFooterViewConfirmBtnClicked:(NSString *)text font:(UIFont *)font color:(UIColor *)color
+{
+    self.colorFooterView.center = CGPointMake(self.view.center.x, self.view.center.y + SCREENAPPLYHEIGHT(667));
+    self.colorFooterView.hidden = YES;
+    
+    CGRect rect1 = [text boundingRectWithSize:CGSizeMake(SCREENAPPLYHEIGHT(340), MAXFLOAT)
+                                      options:NSStringDrawingTruncatesLastVisibleLine | NSStringDrawingUsesFontLeading |NSStringDrawingUsesLineFragmentOrigin
+                                   attributes:@{NSFontAttributeName:font}
+                                      context:nil];
+    CGRect rect2 = [text boundingRectWithSize:CGSizeMake(MAXFLOAT, SCREENAPPLYHEIGHT(100))
+                                      options:NSStringDrawingTruncatesLastVisibleLine | NSStringDrawingUsesFontLeading |NSStringDrawingUsesLineFragmentOrigin
+                                   attributes:@{NSFontAttributeName:font}
+                                      context:nil];
+    
+    if (rect2.size.width > SCREENAPPLYHEIGHT(340)) {
+        rect2.size.width = SCREENAPPLYHEIGHT(340);
+    }
+    
+    StoryMakeStickerLabelView *stickeLabelView = [[StoryMakeStickerLabelView alloc] initWithLabelHeight:CGSizeMake(rect2.size.width, rect1.size.height)];
+    stickeLabelView.delegate = self;
+    stickeLabelView.tag = self.stickerTags ++;
+    stickeLabelView.frame = CGRectMake(0, 0, rect2.size.width + SCREENAPPLYHEIGHT(44), rect1.size.height + SCREENAPPLYHEIGHT(34));
+    stickeLabelView.center = CGPointMake(SCREENAPPLYHEIGHT(187.5), SCREENAPPLYHEIGHT(180));
+    stickeLabelView.contentLabel.text = text;
+    stickeLabelView.contentLabel.font = font;
+    stickeLabelView.contentLabel.textColor = color;
+    
+    [viewPenRoot addSubview:stickeLabelView];
+    [self.stickerViewArray insertObject:stickeLabelView atIndex:0];
+}
+
+- (void)storyMakeSelectColorFooterViewConfirmBtnClicked:(UIImage *)drawImage
+{
+    self.colorFooterView.center = CGPointMake(self.view.center.x, self.view.center.y + SCREENAPPLYHEIGHT(667));
+    self.colorFooterView.hidden = YES;
+    
+    UIImageView *drawImageView = [[UIImageView alloc] initWithFrame:self.view.bounds];
+    drawImageView.image = drawImage;
+    [viewPenRoot addSubview:drawImageView];
+    [self.stickerViewArray insertObject:drawImageView atIndex:0];
+}
+
+
+- (StoryMakeSelectColorFooterView *)colorFooterView
+{
+    if (!_colorFooterView) {
+        _colorFooterView = [[StoryMakeSelectColorFooterView alloc] init];
+        _colorFooterView.frame = CGRectMake(0, CGRectGetMaxY(self.view.frame), SCREEN_WIDTH, SCREEN_HEIGHT);
+        _colorFooterView.delegate = self;
+        _colorFooterView.hidden = YES;
+    }
+    return _colorFooterView;
+}
 
 -(void)dealloc
 {
